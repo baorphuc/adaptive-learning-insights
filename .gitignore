@@ -1,0 +1,14 @@
+venv/
+.venv/
+env/
+.env/
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+.pytest_cache/
+.vscode/
+.idea/
+
+raw/
+processed/
