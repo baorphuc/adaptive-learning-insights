@@ -97,12 +97,14 @@ def get_recommendation(user_id, top_n=10):
     
     new_words = unseen_words[unseen_words['level'].isin(recommended_levels)].copy()
     
-    freq_score = {'high': 3, 'medium': 2, 'low': 1}
-    new_words['priority_score'] = new_words['frequency'].map(freq_score)
-    new_words['priority_score'] += np.random.uniform(0, 0.5, len(new_words))
+    # Priority scoring (FIXED: ensure float type from start)
+    freq_score = {'high': 3.0, 'medium': 2.0, 'low': 1.0}
+    new_words['priority_score'] = new_words['frequency'].map(freq_score).astype(float)
+    new_words['priority_score'] = new_words['priority_score'] + np.random.uniform(0, 0.5, len(new_words))
     new_words = new_words.sort_values('priority_score', ascending=False)
     
     new_output = new_words[['word', 'level', 'frequency', 'priority_score']].head(top_n)
+    new_output['priority_score'] = new_output['priority_score'].round(1)
     
     # Stats
     stats = {

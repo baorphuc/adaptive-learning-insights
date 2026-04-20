@@ -137,6 +137,7 @@ def get_recommendation(user_id, top_n=10):
         'total_attempts', 'accuracy', 'wrong_count',
         'days_since_last_seen', 'priority_score'
     ]].head(top_n)
+    review_output['priority_score'] = review_output['priority_score'].round(1)
     
     # ============================================
     # PART 2: NEW WORDS
@@ -159,17 +160,18 @@ def get_recommendation(user_id, top_n=10):
     
     # Priority scoring for new words
     # Prefer high-frequency words (easier to learn)
-    freq_score = {'high': 3, 'medium': 2, 'low': 1}
-    new_words['priority_score'] = new_words['frequency'].map(freq_score)
+    freq_score = {'high': 3.0, 'medium': 2.0, 'low': 1.0}
+    new_words['priority_score'] = new_words['frequency'].map(freq_score).astype(float)
     
     # Add small random component for diversity
-    new_words['priority_score'] += np.random.uniform(0, 0.5, len(new_words))
+    new_words['priority_score'] = new_words['priority_score'] + np.random.uniform(0, 0.5, len(new_words))
     
     # Sort by priority
     new_words = new_words.sort_values('priority_score', ascending=False)
     
     # Select columns for output
     new_output = new_words[['word', 'level', 'frequency', 'priority_score']].head(top_n)
+    new_output['priority_score'] = new_output['priority_score'].round(1)
     
     # ============================================
     # SUMMARY STATISTICS
