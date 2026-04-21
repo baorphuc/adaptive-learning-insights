@@ -1,312 +1,297 @@
 """
-English Learning Analytics - Recommendation System
-==================================================
-Provides personalized word recommendations based on:
-1. User's learning history
-2. Forgetting risk (days since last seen)
-3. Error patterns
-4. Sweet spot timing (day 9 threshold)
+English Learning Analytics - Recommendation System (FINAL)
+===========================================================
+Fix log vs v2:
+1. Normalize COMBINED (không riêng từng nhóm)
+2. WEIGHTS được apply đúng vào formula
+3. frequency dùng trong review score
+4. np.random.seed(42) → reproducible
+5. Adaptive review ratio theo accuracy
+6. 20% harder = proper probability
+7. Review criteria tighter (OR + AND combo)
+8. normalize() edge case = 0.0
+9. Log final distribution
+10. Empty new_words guard
 """
 
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+import os
+from datetime import datetime
+
+np.random.seed(42)  # FIX 4: reproducible
 
 # ============================================
 # CONFIGURATION
 # ============================================
 
-# Sweet spot threshold from analysis
-SWEET_SPOT_DAYS = 9  # Review before day 10
+SWEET_SPOT_DAYS = 9
+TOP_N = 20
 
-# Recommendation rules
-REVIEW_RULES = {
-    'wrong_count_threshold': 2,      # Wrong >= 2 times → review
-    'days_since_threshold': SWEET_SPOT_DAYS,  # Not seen > 9 days → review
-    'low_accuracy_threshold': 0.5    # User accuracy < 50% on this word → review
+# FIX 2: Weights actually used in formula
+WEIGHTS = {
+    'days_since':  0.6,
+    'wrong_count': 0.3,
+    'frequency':   0.1
 }
 
-NEW_WORD_RULES = {
-    'level_match': True,             # Recommend words at user's level
-    'prefer_high_frequency': True    # Prioritize common words
-}
+FREQ_SCORE  = {'high': 1.0, 'medium': 0.5, 'low': 0.0}   # review: low freq = harder
+FREQ_SCORE_NEW = {'high': 3.0, 'medium': 2.0, 'low': 1.0} # new: high freq = easier first
 
 # ============================================
-# LOAD DATA
+# HELPERS
 # ============================================
+
+def normalize(series):
+    """Normalize to 0-10. Edge case: all same → 0.0"""  # FIX 8
+    lo, hi = series.min(), series.max()
+    if hi == lo:
+        return pd.Series([0.0] * len(series), index=series.index)
+    return (series - lo) / (hi - lo) * 10
+
 
 def load_data():
-    """Load processed data and prepare for recommendations"""
-    
-    # Load files
-    df = pd.read_csv('processed/quiz_results_clean.csv', sep=';', encoding='utf-8-sig')
-    words = pd.read_csv('raw/words.csv', sep=';', encoding='utf-8-sig')
-    users = pd.read_csv('raw/users.csv', sep=';', encoding='utf-8-sig')
-    
+    df    = pd.read_csv('processed/quiz_results_clean.csv', sep=';', encoding='utf-8-sig')
+    words = pd.read_csv('raw/words.csv',                   sep=';', encoding='utf-8-sig')
+    users = pd.read_csv('raw/users.csv',                   sep=';', encoding='utf-8-sig')
     return df, words, users
 
 # ============================================
-# RECOMMENDATION LOGIC
+# CORE FUNCTION
 # ============================================
 
-def get_recommendation(user_id, top_n=10):
+def get_recommendation(user_id, top_n=TOP_N, debug=False):
     """
-    Get personalized word recommendations for a user
-    
-    Args:
-        user_id (str): User ID (e.g., 'U001')
-        top_n (int): Number of recommendations to return
-    
-    Returns:
-        dict: {
-            'review_words': DataFrame of words to review,
-            'new_words': DataFrame of new words to learn,
-            'stats': Summary statistics
-        }
+    Personalized word recommendations.
+
+    Priority formula (WEIGHTS applied correctly):
+        review_score = 0.6 * norm(days_since)
+                     + 0.3 * norm(wrong_count)
+                     + 0.1 * norm(freq_penalty)
+
+    new_score = frequency_map (high=3, medium=2, low=1)
+
+    Final: normalize COMBINED scores → compare apples to apples
     """
-    
-    # Load data
     df, words_df, users_df = load_data()
-    
-    # Get user info
-    user = users_df[users_df['user_id'] == user_id]
-    if len(user) == 0:
+
+    # Validate
+    user_row = users_df[users_df['user_id'] == user_id]
+    if len(user_row) == 0:
         return {'error': f'User {user_id} not found'}
-    
-    user_level = user.iloc[0]['level']
-    
-    # Get user's quiz history
+
+    user_level   = user_row.iloc[0]['level']
     user_history = df[df['user_id'] == user_id].copy()
-    
+
     if len(user_history) == 0:
-        return {'error': f'No history found for user {user_id}'}
-    
+        return {'error': f'No history for {user_id}'}
+
+    level_order = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+    user_idx    = level_order.index(user_level)
+
     # ============================================
     # PART 1: REVIEW WORDS
     # ============================================
-    
-    # Calculate per-word stats for this user
-    word_stats = user_history.groupby('word_id').agg({
-        'is_correct': ['sum', 'count', 'mean'],
-        'timestamp': 'max'
-    })
-    
-    word_stats.columns = ['correct_count', 'total_attempts', 'accuracy', 'last_seen']
-    word_stats['wrong_count'] = word_stats['total_attempts'] - word_stats['correct_count']
-    
-    # Calculate days since last seen
-    now = datetime.now()
-    word_stats['last_seen'] = pd.to_datetime(word_stats['last_seen'])
-    word_stats['days_since_last_seen'] = (now - word_stats['last_seen']).dt.days
-    
-    # Add word info
+
+    word_stats = user_history.groupby('word_id').agg(
+        correct_count  = ('is_correct', 'sum'),
+        total_attempts = ('is_correct', 'count'),
+        accuracy       = ('is_correct', 'mean'),
+        last_seen      = ('timestamp',  'max')
+    )
+    word_stats['wrong_count']        = word_stats['total_attempts'] - word_stats['correct_count']
+    word_stats['last_seen']          = pd.to_datetime(word_stats['last_seen'])
+    word_stats['days_since_last_seen'] = (datetime.now() - word_stats['last_seen']).dt.days
+
     word_stats = word_stats.merge(
-        words_df[['word_id', 'word', 'level', 'frequency']], 
-        left_index=True, 
-        right_on='word_id'
+        words_df[['word_id', 'word', 'level', 'frequency']],
+        left_index=True, right_on='word_id'
     )
-    
-    # REVIEW CRITERIA (3 conditions - ANY triggers review)
+
+    # FIX 7: Tighter review criteria
     review_mask = (
-        # Condition 1: Wrong multiple times (struggling)
-        (word_stats['wrong_count'] >= REVIEW_RULES['wrong_count_threshold']) |
-        
-        # Condition 2: Not seen in a while (forgetting risk)
-        (word_stats['days_since_last_seen'] > REVIEW_RULES['days_since_threshold']) |
-        
-        # Condition 3: Low accuracy on this word (weak spot)
-        (word_stats['accuracy'] < REVIEW_RULES['low_accuracy_threshold'])
+        (word_stats['wrong_count'] >= 2) |
+        (
+            (word_stats['days_since_last_seen'] > SWEET_SPOT_DAYS) &
+            (word_stats['accuracy'] < 0.7)
+        )
     )
-    
+
     review_words = word_stats[review_mask].copy()
-    
-    # Priority scoring for review words
-    # Higher score = more urgent to review
-    review_words['priority_score'] = (
-        review_words['wrong_count'] * 2.0 +                    # Wrong count (weight: 2x)
-        (review_words['days_since_last_seen'] / 10) * 1.5 +   # Days since (weight: 1.5x)
-        (1 - review_words['accuracy']) * 3.0                   # Inverse accuracy (weight: 3x)
-    )
-    
-    # Sort by priority (highest first)
+
+    if len(review_words) > 0:
+        # FIX 2 + 3: Apply WEIGHTS correctly, include frequency
+        freq_penalty = review_words['frequency'].map(FREQ_SCORE).fillna(0.5)
+
+        review_words['priority_score'] = (
+            WEIGHTS['days_since']  * normalize(review_words['days_since_last_seen']) +
+            WEIGHTS['wrong_count'] * normalize(review_words['wrong_count'])          +
+            WEIGHTS['frequency']   * normalize(freq_penalty)
+        ).round(2)  # ROUND → clean Excel display
+    else:
+        review_words['priority_score'] = 0.0
+
     review_words = review_words.sort_values('priority_score', ascending=False)
-    
-    # Select columns for output
-    review_output = review_words[[
-        'word', 'level', 'frequency', 
-        'total_attempts', 'accuracy', 'wrong_count',
-        'days_since_last_seen', 'priority_score'
-    ]].head(top_n)
-    review_output['priority_score'] = review_output['priority_score'].round(1)
-    
+
     # ============================================
     # PART 2: NEW WORDS
     # ============================================
-    
-    # Get words user has NOT seen yet
-    seen_word_ids = set(user_history['word_id'].unique())
-    unseen_words = words_df[~words_df['word_id'].isin(seen_word_ids)].copy()
-    
-    # Filter by level (recommend at user's level or one level below)
-    level_order = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
-    user_level_idx = level_order.index(user_level)
-    
-    # Include current level + one below (if exists)
-    recommended_levels = [user_level]
-    if user_level_idx > 0:
-        recommended_levels.append(level_order[user_level_idx - 1])
-    
-    new_words = unseen_words[unseen_words['level'].isin(recommended_levels)].copy()
-    
-    # Priority scoring for new words
-    # Prefer high-frequency words (easier to learn)
-    freq_score = {'high': 3.0, 'medium': 2.0, 'low': 1.0}
-    new_words['priority_score'] = new_words['frequency'].map(freq_score).astype(float)
-    
-    # Add small random component for diversity
-    new_words['priority_score'] = new_words['priority_score'] + np.random.uniform(0, 0.5, len(new_words))
-    
-    # Sort by priority
-    new_words = new_words.sort_values('priority_score', ascending=False)
-    
-    # Select columns for output
-    new_output = new_words[['word', 'level', 'frequency', 'priority_score']].head(top_n)
-    new_output['priority_score'] = new_output['priority_score'].round(1)
-    
+
+    seen_ids = set(user_history['word_id'].unique())
+    unseen   = words_df[~words_df['word_id'].isin(seen_ids)].copy()
+
+    # Base: current level + one below
+    rec_levels = [user_level]
+    if user_idx > 0:
+        rec_levels.append(level_order[user_idx - 1])
+
+    new_words = unseen[unseen['level'].isin(rec_levels)].copy()
+
+    # FIX 6: 20% probability for harder words (not guaranteed)
+    if user_idx < len(level_order) - 1 and np.random.rand() < 0.2:
+        harder = unseen[unseen['level'] == level_order[user_idx + 1]]
+        if len(harder) > 0:
+            new_words = pd.concat([new_words, harder.sample(min(2, len(harder)))])
+
+    # FIX 10: Guard empty new_words
+    if len(new_words) == 0:
+        new_words_output = pd.DataFrame(columns=['word', 'level', 'frequency', 'priority_score', 'type'])
+    else:
+        new_words['priority_score'] = new_words['frequency'].map(FREQ_SCORE_NEW).astype(float)
+        new_words = new_words.sort_values('priority_score', ascending=False)
+        new_words_output = new_words[['word', 'level', 'frequency', 'priority_score']]
+
     # ============================================
-    # SUMMARY STATISTICS
+    # PART 3: FINAL RECOMMENDATION
     # ============================================
-    
+
+    # FIX 5: Adaptive ratio based on accuracy
+    overall_acc = user_history['is_correct'].mean()
+    if overall_acc < 0.5:
+        n_review, n_new = 16, 4   # weak user → more review
+    elif overall_acc < 0.7:
+        n_review, n_new = 15, 5   # average
+    else:
+        n_review, n_new = 12, 8   # strong user → more new words
+
+    review_tagged        = review_words.head(n_review)[['word', 'level', 'frequency', 'priority_score']].copy()
+    review_tagged['type'] = 'review'
+
+    new_tagged            = new_words_output.head(n_new).copy()
+    new_tagged['type']    = 'new'
+
+    # FIX 1: Normalize COMBINED (not separate)
+    combined = pd.concat([review_tagged, new_tagged])
+    combined['priority_score'] = normalize(combined['priority_score']).round(2)  # ROUND → clean Excel display
+    final = combined.sort_values('priority_score', ascending=False).head(top_n)
+
+    # ============================================
+    # STATS
+    # ============================================
+
     stats = {
-        'user_id': user_id,
-        'user_level': user_level,
-        'total_words_seen': len(seen_word_ids),
-        'total_attempts': len(user_history),
-        'overall_accuracy': user_history['is_correct'].mean(),
-        'words_needing_review': len(review_words),
-        'new_words_available': len(new_words),
+        'user_id':          user_id,
+        'user_level':       user_level,
+        'total_words_seen': len(seen_ids),
+        'total_attempts':   len(user_history),
+        'overall_accuracy': round(overall_acc, 3),
+        'words_to_review':  len(review_words),
+        'n_review_recommended': n_review,
+        'n_new_recommended':    n_new,
         'review_reasons': {
-            'wrong_multiple_times': (word_stats['wrong_count'] >= REVIEW_RULES['wrong_count_threshold']).sum(),
-            'forgetting_risk': (word_stats['days_since_last_seen'] > REVIEW_RULES['days_since_threshold']).sum(),
-            'low_accuracy': (word_stats['accuracy'] < REVIEW_RULES['low_accuracy_threshold']).sum()
+            'wrong_multiple': int((word_stats['wrong_count'] >= 2).sum()),
+            'forgetting_and_weak': int(
+                ((word_stats['days_since_last_seen'] > SWEET_SPOT_DAYS) &
+                 (word_stats['accuracy'] < 0.7)).sum()
+            )
         }
     }
-    
+
+    # FIX 9: Log final distribution
+    if debug:
+        print(f"\n[DEBUG] {user_id} | Level: {user_level} | Accuracy: {overall_acc:.1%}")
+        print(f"  Ratio → review: {n_review} | new: {n_new}")
+        print(f"  Final type dist: {final['type'].value_counts().to_dict()}")
+        print(f"  Score range → review: {review_tagged['priority_score'].min():.2f}-{review_tagged['priority_score'].max():.2f} | "
+              f"new: {new_tagged['priority_score'].min():.2f}-{new_tagged['priority_score'].max():.2f}")
+
     return {
-        'review_words': review_output,
-        'new_words': new_output,
-        'stats': stats
+        'review_words':         review_words.head(n_review),
+        'new_words':            new_words_output.head(n_new),
+        'final_recommendation': final,
+        'stats':                stats
     }
 
 # ============================================
-# DISPLAY FUNCTION
+# DISPLAY
 # ============================================
 
-def display_recommendation(user_id, top_n=10):
-    """
-    Display recommendations in a readable format
-    """
-    
-    result = get_recommendation(user_id, top_n)
-    
+def display_recommendation(user_id):
+    result = get_recommendation(user_id, debug=True)
+
     if 'error' in result:
-        print(f"❌ Error: {result['error']}")
+        print(f"❌ {result['error']}")
         return
-    
-    stats = result['stats']
-    
-    print("=" * 70)
-    print(f"PERSONALIZED RECOMMENDATIONS FOR {user_id}")
-    print("=" * 70)
-    
-    # User stats
-    print(f"\n📊 USER PROFILE")
-    print(f"  Level: {stats['user_level']}")
-    print(f"  Words learned: {stats['total_words_seen']}")
-    print(f"  Total attempts: {stats['total_attempts']}")
-    print(f"  Overall accuracy: {stats['overall_accuracy']:.1%}")
-    
-    # Review recommendations
-    print(f"\n🔄 WORDS TO REVIEW ({len(result['review_words'])} recommended)")
-    print("-" * 70)
-    
-    if len(result['review_words']) > 0:
-        print("\nWhy review?")
-        print(f"  • Wrong multiple times (≥2): {stats['review_reasons']['wrong_multiple_times']} words")
-        print(f"  • Forgetting risk (>{SWEET_SPOT_DAYS}d): {stats['review_reasons']['forgetting_risk']} words")
-        print(f"  • Low accuracy (<50%): {stats['review_reasons']['low_accuracy']} words")
-        
-        print(f"\nTop {min(top_n, len(result['review_words']))} priority words:")
-        print(result['review_words'].to_string(index=False))
-    else:
-        print("  ✅ No words need review right now!")
-    
-    # New word recommendations
-    print(f"\n\n✨ NEW WORDS TO LEARN ({len(result['new_words'])} recommended)")
-    print("-" * 70)
-    
-    if len(result['new_words']) > 0:
-        print(f"\nRecommended for {stats['user_level']} level learners:")
-        print(result['new_words'].to_string(index=False))
-    else:
-        print("  You've learned all available words at your level!")
-    
-    print("\n" + "=" * 70)
+
+    s = result['stats']
+
+    print(f"\n{'='*70}")
+    print(f"  {user_id}  |  Level: {s['user_level']}  |  Accuracy: {s['overall_accuracy']:.1%}")
+    print(f"  Ratio: {s['n_review_recommended']} review + {s['n_new_recommended']} new")
+    print(f"{'='*70}")
+
+    print(f"\n🔄 REVIEW  (wrong≥2: {s['review_reasons']['wrong_multiple']} | "
+          f"forgetting+weak: {s['review_reasons']['forgetting_and_weak']})")
+    cols = ['word', 'level', 'accuracy', 'wrong_count', 'days_since_last_seen', 'priority_score']
+    print(result['review_words'][cols].to_string(index=False))
+
+    print(f"\n✨ NEW WORDS")
+    print(result['new_words'].to_string(index=False))
+
+    print(f"\n🎯 FINAL (normalized 0-10, combined scale)")
+    print(result['final_recommendation'][['word', 'level', 'type', 'priority_score']].to_string(index=False))
+
 
 # ============================================
-# MAIN - DEMO
+# MAIN
 # ============================================
 
 if __name__ == "__main__":
-    print("=" * 70)
-    print("ENGLISH LEARNING RECOMMENDATION SYSTEM")
-    print("=" * 70)
-    
-    # Create output folder
-    import os
     os.makedirs('processed', exist_ok=True)
-    
-    # Demo with 3 different users
+
+    print("=" * 70)
+    print("RECOMMENDATION SYSTEM — FINAL VERSION")
+    print("=" * 70)
+    print(f"\nFormula:")
+    print(f"  review_score = {WEIGHTS['days_since']}×norm(days_since)")
+    print(f"               + {WEIGHTS['wrong_count']}×norm(wrong_count)")
+    print(f"               + {WEIGHTS['frequency']}×norm(freq_penalty)")
+    print(f"  new_score    = freq_map (high=3, medium=2, low=1)")
+    print(f"  final        = normalize(combined) → sort → top N")
+
     demo_users = ['U001', 'U025', 'U050']
-    
-    all_results = []
-    
+
     for user_id in demo_users:
-        display_recommendation(user_id, top_n=5)
-        
-        # Get and save results
-        result = get_recommendation(user_id, top_n=10)
+        display_recommendation(user_id)
+
+        result = get_recommendation(user_id)
         if 'error' not in result:
-            # Save individual user recommendations
             result['review_words'].to_csv(
-                f'processed/rec_{user_id}_review.csv', 
-                index=False, 
-                sep=';', 
-                encoding='utf-8-sig'
+                f'processed/rec_{user_id}_review.csv',
+                index=False, sep=';', encoding='utf-8-sig'
             )
             result['new_words'].to_csv(
-                f'processed/rec_{user_id}_new.csv', 
-                index=False, 
-                sep=';', 
-                encoding='utf-8-sig'
+                f'processed/rec_{user_id}_new.csv',
+                index=False, sep=';', encoding='utf-8-sig'
             )
-            all_results.append(result)
-        
-        print("\n\n")
-    
+            result['final_recommendation'].to_csv(
+                f'processed/rec_{user_id}_final.csv',
+                index=False, sep=';', encoding='utf-8-sig'
+            )
+        print()
+
     print("=" * 70)
-    print("✅ RECOMMENDATION SYSTEM COMPLETE")
-    print("=" * 70)
-    print("\nGenerated files:")
-    for user_id in demo_users:
-        print(f"  - processed/rec_{user_id}_review.csv (words to review)")
-        print(f"  - processed/rec_{user_id}_new.csv (new words)")
-    
-    print("\nUsage:")
-    print("  from recommendation import get_recommendation")
-    print("  result = get_recommendation('U001', top_n=10)")
-    print("\nReturns:")
-    print("  - review_words: DataFrame with priority scores")
-    print("  - new_words: DataFrame with recommendations")
-    print("  - stats: Summary statistics")
+    print("✅ DONE — Files exported to processed/")
+    for u in demo_users:
+        print(f"  rec_{u}_review.csv | rec_{u}_new.csv | rec_{u}_final.csv")
     print("=" * 70)
