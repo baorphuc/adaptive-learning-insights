@@ -1,3 +1,6 @@
+processed/chart*.html
+processed/rec_*.csv
+
 venv/
 .venv/
 env/
