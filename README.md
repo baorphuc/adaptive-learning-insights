@@ -14,8 +14,6 @@
 Hệ thống phân tích dữ liệu học tiếng Anh, mô phỏng hành vi học từ vựng của 100 người dùng với 2000 từ.  
 Mục tiêu: tìm ra **Sweet Spot of Review** và xây dựng recommendation system cá nhân hóa dựa trên dữ liệu.
 
-**Target role:** Data Analyst / Data Scientist Intern
-
 ---
 
 ## 🎯 Why This Matters
