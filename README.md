@@ -11,8 +11,8 @@
 
 ## 📌 Project Overview
 
-English learning analytics system simulating vocabulary learning behavior of 100 users with 2,000 words.  
-Goal: Identify the **Sweet Spot of Review** and build a personalized recommendation system based on data.
+Hệ thống phân tích dữ liệu học tiếng Anh, mô phỏng hành vi học từ vựng của 100 người dùng với 2000 từ.  
+Mục tiêu: tìm ra **Sweet Spot of Review** và xây dựng recommendation system cá nhân hóa dựa trên dữ liệu.
 
 **Target role:** Data Analyst / Data Scientist Intern
 
@@ -20,16 +20,16 @@ Goal: Identify the **Sweet Spot of Review** and build a personalized recommendat
 
 ## 🎯 Why This Matters
 
-Inefficient vocabulary learning is usually caused by two main factors:
+Học từ vựng kém hiệu quả thường do 2 nguyên nhân:
 
-- **Reviewing too early** → Wasted time (the word has not been forgotten yet)
-- **Reviewing too late** → Significant forgetting has occurred, requiring relearning from scratch
+- **Review quá sớm** → lãng phí thời gian (từ chưa kịp quên)
+- **Review quá muộn** → đã quên nhiều, phải học lại từ đầu
 
-This project identifies the **Sweet Spot** — the optimal interval for review — calculated from empirical data:
+Project này xác định **Sweet Spot** — khoảng thời gian tối ưu để ôn lại — từ dữ liệu thực tế:
 
-- Reducing redundant reviews
-- Preventing forgetting before it happens
-- Improving learning efficiency by ~10–15% compared to random review schedules
+- Giảm review không cần thiết
+- Ngăn forgetting trước khi xảy ra
+- Cải thiện learning efficiency ~10–15% so với random review schedule
 
 ---
 
@@ -72,16 +72,16 @@ adaptive-learning-insights/
 
 ### Data Generation Logic
 
-Data is simulated with 4 clear logical factors:
+Data được simulate với 4 yếu tố logic rõ ràng:
 
 ```python
 probability = base_from_level_gap      # word level vs user level
-            - frequency_penalty        # rare words are harder to remember
+            - frequency_penalty        # rare words harder to remember
             - forgetting_penalty       # step-based: -5% (>3d), -15% (>7d), -20% (>14d)
             + learning_boost           # +3% per attempt, max +15%
 ```
 
-**Controlled spaced repetition intervals** (reflecting real-world SRS):
+**Controlled spaced repetition spacing** (phản ánh SRS thực tế):
 
 | Attempt | Interval |
 |---------|----------|
@@ -99,7 +99,7 @@ probability = base_from_level_gap      # word level vs user level
 
 ### Cleaning steps:
 - Remove duplicates
-- Filter invalid `time_spent` (< 0 or > 300 seconds)
+- Filter invalid `time_spent` (< 0 hoặc > 300 giây)
 - Drop missing values on critical fields
 
 ### Derived features (6 features added):
@@ -120,11 +120,11 @@ probability = base_from_level_gap      # word level vs user level
 | # | Query | Finding |
 |---|-------|---------|
 | 1 | Word difficulty by level | Higher-level words (C1–C2) show significantly higher error rates, primarily due to mismatch with user proficiency levels |
-| 2 | Hardest words | Top words with 80–91% error rates, mostly at C1/C2 levels |
-| 3 | Learning curve | Accuracy improves over attempts — clear learning effect |
-| 4 | Time vs accuracy | Correlation −0.70: time spent is a signal of struggling, not deep thinking |
-| 5 | User performance | ~25% of users have accuracy < 40% — intervention required |
-| 6 | **Retention analysis** | Accuracy drops from 60.7% → 50.0% after day 10 → **Sweet Spot at day 9** |
+| 2 | Hardest words | Top words với error rate 80–91%, phần lớn là C1/C2 level |
+| 3 | Learning curve | Accuracy cải thiện qua các lần attempt — learning effect rõ ràng |
+| 4 | Time vs accuracy | Correlation −0.70: time spent là signal của struggling, không phải careful thinking |
+| 5 | User performance | ~25% users có accuracy < 40% — cần intervention |
+| 6 | **Retention analysis** | Accuracy giảm từ 60.7% → 50.0% sau day 10 → **Sweet Spot tại day 9** |
 
 ---
 
@@ -132,10 +132,10 @@ probability = base_from_level_gap      # word level vs user level
 
 | Chart | Type | Insight |
 |-------|------|---------|
-| `chart1_difficulty_by_level.html` | Bar | Error rate increases with CEFR level |
-| `chart2_learning_curve.html` | Line | Accuracy improves through attempts |
+| `chart1_difficulty_by_level.html` | Bar | Error rate tăng theo CEFR level |
+| `chart2_learning_curve.html` | Line | Accuracy cải thiện qua attempts |
 | `chart3_error_heatmap.html` | Heatmap | User level × Word level error pattern |
-| `chart4_time_vs_accuracy.html` | Scatter | Time spent is a signal of difficulty |
+| `chart4_time_vs_accuracy.html` | Scatter | Time spent là signal của difficulty |
 | `chart5_user_distribution.html` | Histogram | Distribution of user accuracy |
 | `chart6_sweet_spot.html` ⭐ | Line + markers | **Sweet Spot of Review** |
 | `chart7_retention_buckets.html` | Bar | Retention by time bucket (supports chart 6) |
@@ -145,23 +145,23 @@ probability = base_from_level_gap      # word level vs user level
 
 ## ⭐ Sweet Spot of Review
 
-**The hallmark insight of the project.**
+**Signature insight của project.**
 
 ```
 Baseline accuracy (0–3 days):  60.7%
 Accuracy at day 10:             50.0%
 Drop:                          −10.7%
 
-→ Review BEFORE day 10 to maintain accuracy above the threshold
+→ Review BEFORE day 10 để giữ accuracy trên threshold
 ```
 
 **Threshold definition (10% drop):**
 
 | Drop | Interpretation |
 |------|---------------|
-| < 5% | Measurement noise — negligible |
+| < 5% | Measurement noise — không đáng kể |
 | **10%** | **Significant → actionable threshold** ✅ |
-| > 15% | Excessive forgetting — recovery is costly |
+| > 15% | Đã quên quá nhiều — recovery tốn kém hơn |
 
 **Retention curve:**
 
@@ -225,7 +225,7 @@ combined['priority_score'] = normalize(combined['priority_score'])
 
 ```
 word      level  type    priority_score
-word_634  B2     review  10.00   ← incorrect×2 + 797 days unseen
+word_634  B2     review  10.00   ← wrong×2 + 797 days unseen
 word_1078 C1     review   9.97
 word_1838 C1     review   9.78
 ...
@@ -293,11 +293,11 @@ python scripts/recommendation.py
 
 ## ⚠️ Limitations
 
-- **Simulated data** — Not actual user behavior; patterns were intentionally designed for simulation
-- **Simplified forgetting model** — Uses step-based thresholds instead of a true exponential decay (Ebbinghaus)
-- **Rule-based recommendation** — No ML-based personalization; weights are manually defined
-- **No real-time adaptation** — System does not update dynamically as user behavior changes
-- **Sweet Spot generalized** — Day 9 is a dataset-wide average; individual results vary by user and word category
+- **Simulated data** — không phải hành vi người dùng thực tế; patterns được thiết kế có chủ đích
+- **Simplified forgetting model** — dùng step-based thresholds thay vì exponential decay (Ebbinghaus)
+- **Rule-based recommendation** — không có personalization từ ML; weights được set thủ công
+- **No real-time adaptation** — system không cập nhật khi user thay đổi hành vi
+- **Sweet Spot generalized** — day 9 là trung bình toàn dataset, thực tế sẽ khác nhau theo từng user và word type
 
 ---
 
