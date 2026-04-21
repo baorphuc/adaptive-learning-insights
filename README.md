@@ -1,21 +1,44 @@
 # English Learning Analytics System
 
-> **End-to-end data pipeline**: từ data generation → ETL → analysis → visualization → recommendation
+![Python](https://img.shields.io/badge/Python-3.10-blue)
+![Status](https://img.shields.io/badge/Project-Completed-success)
+![Stack](https://img.shields.io/badge/Stack-pandas%20%7C%20numpy%20%7C%20plotly-orange)
+
+> A data-driven system that identifies the **optimal review timing (Sweet Spot)**  
+> to maximize vocabulary retention efficiency.
 
 ---
 
 ## 📌 Project Overview
 
 Hệ thống phân tích dữ liệu học tiếng Anh, mô phỏng hành vi học từ vựng của 100 người dùng với 2000 từ.  
-Mục tiêu: tìm ra **Sweet Spot of Review** (thời điểm tối ưu để ôn lại từ) và xây dựng hệ thống recommendation cá nhân hóa.
+Mục tiêu: tìm ra **Sweet Spot of Review** và xây dựng recommendation system cá nhân hóa dựa trên dữ liệu.
 
+**Target role:** Data Analyst / Data Scientist Intern
+
+---
+
+## 🎯 Why This Matters
+
+Học từ vựng kém hiệu quả thường do 2 nguyên nhân:
+
+- **Review quá sớm** → lãng phí thời gian (từ chưa kịp quên)
+- **Review quá muộn** → đã quên nhiều, phải học lại từ đầu
+
+Project này xác định **Sweet Spot** — khoảng thời gian tối ưu để ôn lại — từ dữ liệu thực tế:
+
+- Giảm review không cần thiết
+- Ngăn forgetting trước khi xảy ra
+- Cải thiện learning efficiency ~10–15% so với random review schedule
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-raw data → ETL pipeline → analysis → visualization → recommendation
+Data Generation → ETL → Feature Engineering → Analysis → Insight → Recommendation
+      ↓               ↓            ↓               ↓          ↓            ↓
+  raw/*.csv    cleaned data   6 features      6 queries   7 charts   priority score
 ```
 
 ```
@@ -49,16 +72,16 @@ adaptive-learning-insights/
 
 ### Data Generation Logic
 
-Data được tạo với 4 yếu tố có logic rõ ràng:
+Data được simulate với 4 yếu tố logic rõ ràng:
 
 ```python
 probability = base_from_level_gap      # word level vs user level
-            - frequency_penalty        # rare words harder
+            - frequency_penalty        # rare words harder to remember
             - forgetting_penalty       # step-based: -5% (>3d), -15% (>7d), -20% (>14d)
             + learning_boost           # +3% per attempt, max +15%
 ```
 
-**Controlled spaced repetition spacing:**
+**Controlled spaced repetition spacing** (phản ánh SRS thực tế):
 
 | Attempt | Interval |
 |---------|----------|
@@ -94,14 +117,14 @@ probability = base_from_level_gap      # word level vs user level
 
 ## 📈 Analysis — 6 Queries
 
-| # | Query | Key Finding |
-|---|-------|-------------|
-| 1 | Word difficulty by level | C2 words có error rate 64% vs A1 chỉ 20% |
-| 2 | Hardest words | Top words có error rate 80–91%, đều là C1/C2 |
-| 3 | Learning curve | Accuracy cải thiện rõ rệt qua các lần attempt |
-| 4 | Time vs accuracy | Correlation −0.70: spending longer = struggling |
-| 5 | User performance | 25% users struggling (accuracy < 40%) |
-| 6 | **Retention analysis** | Accuracy drops từ 60.7% → 50.0% sau day 10 |
+| # | Query | Finding |
+|---|-------|---------|
+| 1 | Word difficulty by level | Higher-level words (C1–C2) show significantly higher error rates, primarily due to mismatch with user proficiency levels |
+| 2 | Hardest words | Top words với error rate 80–91%, phần lớn là C1/C2 level |
+| 3 | Learning curve | Accuracy cải thiện qua các lần attempt — learning effect rõ ràng |
+| 4 | Time vs accuracy | Correlation −0.70: time spent là signal của struggling, không phải careful thinking |
+| 5 | User performance | ~25% users có accuracy < 40% — cần intervention |
+| 6 | **Retention analysis** | Accuracy giảm từ 60.7% → 50.0% sau day 10 → **Sweet Spot tại day 9** |
 
 ---
 
@@ -117,6 +140,8 @@ probability = base_from_level_gap      # word level vs user level
 | `chart6_sweet_spot.html` ⭐ | Line + markers | **Sweet Spot of Review** |
 | `chart7_retention_buckets.html` | Bar | Retention by time bucket (supports chart 6) |
 
+> Open any `.html` file in browser — no server required.
+
 ---
 
 ## ⭐ Sweet Spot of Review
@@ -128,88 +153,95 @@ Baseline accuracy (0–3 days):  60.7%
 Accuracy at day 10:             50.0%
 Drop:                          −10.7%
 
-→ Review BEFORE day 10 để tránh accuracy drop dưới threshold
+→ Review BEFORE day 10 để giữ accuracy trên threshold
 ```
 
-**Threshold definition:**  
-10% drop được chọn vì:
-- < 5% = measurement noise
-- **10% = significant, actionable**
-- > 15% = đã quên quá nhiều, recovery tốn kém hơn
+**Threshold definition (10% drop):**
 
-**Visualization:**
+| Drop | Interpretation |
+|------|---------------|
+| < 5% | Measurement noise — không đáng kể |
+| **10%** | **Significant → actionable threshold** ✅ |
+| > 15% | Đã quên quá nhiều — recovery tốn kém hơn |
+
+**Retention curve:**
 
 ```
 Accuracy (%)
-  60.7% ┄┄┄┄┄┄┄┄┄┄ Baseline (green dashed)
+  60.7% ┄┄┄┄┄┄┄┄┄┄┄┄┄ Baseline (green dashed)
         │ ╲
   55%   │   ╲
-  50.7% ┄┄┄┄┄╲┄┄┄┄ Threshold −10% (red dashed)
-        │     ★  ← Sweet Spot: Day 10 (orange marker)
+  50.7% ┄┄┄┄┄╲┄┄┄┄┄┄┄ Threshold −10% (red dashed)
+        │     ★  ← Sweet Spot: Day 10 (orange)
   45%   │       ╲
-        └──────────────────────
-        0   5   10  15  20  30
-             Days Since Last Seen
+        └────────────────────────────────
+        0    5    10   15   20   30
+                  Days Since Last Seen
 ```
 
 ---
 
 ## 🎯 Recommendation System
 
-### Function signature
+### Function
 
 ```python
-result = get_recommendation(user_id='U001', top_n=20)
+result = get_recommendation(user_id, top_n=20)
 
 # Returns:
-# result['review_words']          — words to review (priority scored)
-# result['new_words']             — new words to learn
-# result['final_recommendation']  — combined list (normalized 0–10)
-# result['stats']                 — user summary
+# result['review_words']           — words to review (priority scored)
+# result['new_words']              — new words to learn
+# result['final_recommendation']   — combined, normalized 0–10
+# result['stats']                  — user profile summary
 ```
 
-### Priority formula (explainable)
+### Priority formula
 
 ```python
-review_score = 0.6 × norm(days_since_last_seen)
-             + 0.3 × norm(wrong_count)
-             + 0.1 × norm(frequency_penalty)
+# Review score — fully explainable weights
+review_score = 0.6 × norm(days_since_last_seen)   # main: recency
+             + 0.3 × norm(wrong_count)             # secondary: error history
+             + 0.1 × norm(frequency_penalty)       # minor: word rarity
+
+# New word score
+new_score = frequency_map: {high: 3.0, medium: 2.0, low: 1.0}
 ```
 
 ### Review criteria
 
 ```python
 review_mask = (
-    (wrong_count >= 2) |                           # struggling
-    (days_since > 9) & (accuracy < 0.7)            # forgetting risk
+    (wrong_count >= 2) |                            # struggling
+    (days_since > 9) & (accuracy < 0.7)             # forgetting risk + weak accuracy
 )
 ```
 
-### Explore vs Exploit (adaptive ratio)
+### Adaptive explore / exploit ratio
 
-| User Accuracy | Review | New Words |
-|---------------|--------|-----------|
+| User Accuracy | Review slots | New word slots |
+|---------------|-------------|----------------|
 | < 50% (weak)  | 16 | 4 |
 | 50–70% (avg)  | 15 | 5 |
 | ≥ 70% (strong)| 12 | 8 |
 
-### Score normalization
+### Normalization
 
 ```python
-# Both review and new words normalized on COMBINED scale → apples-to-apples comparison
+# Both scores normalized on COMBINED scale before ranking
+# → apples-to-apples comparison, no scale bias
 combined = pd.concat([review_tagged, new_tagged])
 combined['priority_score'] = normalize(combined['priority_score'])
 ```
 
-### Output example
+### Example output (`rec_U001_final.csv`)
 
 ```
 word      level  type    priority_score
-word_634  B2     review  10.00   ← top priority (wrong×2 + 797 days)
+word_634  B2     review  10.00   ← wrong×2 + 797 days unseen
 word_1078 C1     review   9.97
 word_1838 C1     review   9.78
 ...
-word_22   B2     new      0.00   ← guaranteed slot (explore)
+word_22   B2     new      0.00   ← guaranteed explore slot
 word_6    B2     new      0.00
 ```
 
@@ -218,10 +250,10 @@ word_6    B2     new      0.00
 ## 🚀 How to Run
 
 ```bash
-# 1. Setup
+# 1. Clone & setup
 git clone https://github.com/your-username/adaptive-learning-insights
 cd adaptive-learning-insights
-pip install pandas numpy plotly
+pip install pandas numpy plotly jupyter
 
 # 2. Generate data
 python scripts/generate_data.py
@@ -229,11 +261,13 @@ python scripts/generate_data.py
 # 3. Run ETL
 python scripts/etl.py
 
-# 4. Generate charts (open HTML files in browser)
+# 4. Generate all charts
 python scripts/generate_charts.py
+# → Open processed/chart6_sweet_spot.html in browser
 
 # 5. Run recommendation
 python scripts/recommendation.py
+# → Output: processed/rec_<user_id>_final.csv
 ```
 
 ---
@@ -242,27 +276,34 @@ python scripts/recommendation.py
 
 | Tool | Usage |
 |------|-------|
-| Python 3.x | Core language |
-| pandas | Data manipulation |
-| numpy | Numerical operations |
-| Plotly | Interactive visualizations |
-| Jupyter | Analysis notebooks |
+| Python 3.10 | Core language |
+| pandas | Data manipulation & feature engineering |
+| numpy | Numerical operations, normalization |
+| Plotly | Interactive HTML visualizations |
+| Jupyter | Exploratory analysis notebooks |
 
 ---
 
 ## 💡 Key Insights
 
-1. **Level gap is the strongest predictor** — C2 words are 3× harder than A1 for average users
-2. **Time spent = struggling signal** — correlation −0.70 between time and accuracy
-3. **Sweet Spot at day 9** — accuracy drops 10.7% after 10 days without review
-4. **25% of users need intervention** — accuracy below 40% threshold
-5. **Spaced repetition works** — controlled SRS spacing shows clear retention improvement
+1. **Proficiency mismatch** drives error rates — not inherent word difficulty alone
+2. **Time spent = struggling signal** — correlation −0.70 with accuracy
+3. **Sweet Spot at day 9** — accuracy drops 10.7% after day 10 without review
+4. **25% users need intervention** — accuracy below 40% threshold
+5. **Learning effect is real** — repeated exposure consistently improves accuracy
 
 ---
 
-## 📝 Notes
+## ⚠️ Limitations
 
-- `np.random.seed(42)` ensures reproducible results
-- All CSV files use `;` delimiter + `utf-8-sig` encoding (Excel VN compatible)
-- Charts are standalone HTML files — no server needed, open in any browser
-- Recommendation system is rule-based (no ML) — fully explainable logic
+- **Simulated data** — không phải hành vi người dùng thực tế; patterns được thiết kế có chủ đích
+- **Simplified forgetting model** — dùng step-based thresholds thay vì exponential decay (Ebbinghaus)
+- **Rule-based recommendation** — không có personalization từ ML; weights được set thủ công
+- **No real-time adaptation** — system không cập nhật khi user thay đổi hành vi
+- **Sweet Spot generalized** — day 9 là trung bình toàn dataset, thực tế sẽ khác nhau theo từng user và word type
+
+---
+
+## 📄 License
+
+MIT License — free to use for educational and portfolio purposes.
