@@ -142,6 +142,8 @@ probability = base_from_level_gap      # word level vs user level
 
 > Open any `.html` file in browser — no server required.
 
+![Error Pattern Heatmap](assets/error_heatmap.png)
+
 ---
 
 ## ⭐ Sweet Spot of Review
@@ -166,18 +168,7 @@ Drop:                          −10.7%
 
 **Retention curve:**
 
-```
-Accuracy (%)
-  60.7% ┄┄┄┄┄┄┄┄┄┄┄┄┄ Baseline (green dashed)
-        │ ╲
-  55%   │   ╲
-  50.7% ┄┄┄┄┄╲┄┄┄┄┄┄┄ Threshold −10% (red dashed)
-        │     ★  ← Sweet Spot: Day 10 (orange)
-  45%   │       ╲
-        └────────────────────────────────
-        0    5    10   15   20   30
-                  Days Since Last Seen
-```
+![Sweet Spot of Review](assets/sweet_spot.png)
 
 ---
 
