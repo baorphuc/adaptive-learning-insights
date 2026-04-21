@@ -140,9 +140,6 @@ probability = base_from_level_gap      # word level vs user level
 | `chart6_sweet_spot.html` ⭐ | Line + markers | **Sweet Spot of Review** |
 | `chart7_retention_buckets.html` | Bar | Retention by time bucket (supports chart 6) |
 
-> Open any `.html` file in browser — no server required.
-
-![Error Pattern Heatmap](assets/error_heatmap.png)
 
 ---
 
