@@ -14,6 +14,8 @@
 Hệ thống phân tích dữ liệu học tiếng Anh, mô phỏng hành vi học từ vựng của 100 người dùng với 2000 từ.  
 Mục tiêu: tìm ra **Sweet Spot of Review** và xây dựng recommendation system cá nhân hóa dựa trên dữ liệu.
 
+**Target role:** Data Analyst / Data Scientist Intern
+
 ---
 
 ## 🎯 Why This Matters
@@ -237,21 +239,30 @@ word_6    B2     new      0.00
 
 ```bash
 # 1. Clone & setup
-git clone https://github.com/your-username/adaptive-learning-insights
+git clone https://github.com/baorphuc/adaptive-learning-insights
 cd adaptive-learning-insights
-pip install pandas numpy plotly jupyter
 
-# 2. Generate data
+# 2. Create and activate virtual environment (Recommended)
+python -m venv venv
+# On Windows:
+.\venv\Scripts\activate
+# On macOS/Linux:
+# source venv/bin/activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Generate data
 python scripts/generate_data.py
 
-# 3. Run ETL
+# 5. Run ETL
 python scripts/etl.py
 
-# 4. Generate all charts
+# 6. Generate all charts
 python scripts/generate_charts.py
 # → Open processed/chart6_sweet_spot.html in browser
 
-# 5. Run recommendation
+# 7. Run recommendation
 python scripts/recommendation.py
 # → Output: processed/rec_<user_id>_final.csv
 ```
